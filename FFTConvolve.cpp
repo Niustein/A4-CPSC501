@@ -27,32 +27,112 @@ class AudioHeader
 };
 
 //Declare Functions
-void printHeader(AudioHeader);
+void four1 (double*, int, int);
 void convolve(double*, int, double*, int, double*, int);
 void writeOutput(string, double*, int, int);
-void four1 (double*, int, int);
+void printHeader(AudioHeader);
 
-//Prints the wave header
-void printHeader(AudioHeader header){
-    cout << "--- RIFF Chunk Descriptor---" << endl;
-    cout << "RIFF header                :" << header.riff[0] << header.riff[1] << header.riff[2] << header.riff[3] << endl;
-    cout << "Chunk Size                 :" << header.chunkSize << endl;
-    cout << "Format                     :" << header.fmt[0] << header.fmt[1] << header.fmt[2] << header.fmt[3] << endl;
 
-    cout << "------ fmt sub-chunk  ------" << endl;
-    cout << "subChunk1ID                :" << header.fmt[0] << header.fmt[1] << header.fmt[2] << header.fmt [3] << endl;
-    cout << "subChunk1Size              :" << header.subChunk1Size << endl;
-    cout << "audioFormat                :" << header.audioFormat << endl;
-    cout << "numChannel                 :" << header.numChannel << endl;
-    cout << "sampleRate                 :" << header.samplesPS << endl;
-    cout << "byteRate                   :" << header.bytesPS << endl;
-    cout << "blockAlign                 :" << header.blockAlign << endl;
-    cout << "bitsPerSample              :" << header.bitsPerSample << endl;
+AudioHeader::AudioHeader(string fileName){
+    ifstream input;
+    input.open(fileName, ios::binary);
     
-    cout << "------ data sub-chunk ------" << endl;
-    cout << "subChunk2ID                :" << header.subChunk2ID[0] << header.subChunk2ID[1] << header.subChunk2ID[2] << header.subChunk2ID[3] << endl;
-    cout << "subChunk2Size              :" << header.subChunk2Size << endl;
+    input.read((char*)&riff,4);
+    input.read((char*)&chunkSize,4);
+    input.read((char*)&wave, 4);
+    input.read((char*)&fmt, 4);
+    input.read((char*)&subChunk1Size, 4);
+    input.read((char*)&audioFormat,2);
+    input.read((char*)&numChannel, 2);
+    input.read((char*)&samplesPS, 4);
+    input.read((char*)&bytesPS, 4);
+    input.read((char*)&blockAlign, 2);
+    input.read((char*)&bitsPerSample, 2);
+
+    extraData = new uint8_t[subChunk1Size-16];
+    input.read((char*)&extraData, subChunk1Size-16);
+    input.read((char*)&subChunk2ID, 4);
+    input.read((char*)&subChunk2Size, 4);
+    
+    dataA = new double[subChunk2Size / (bitsPerSample/8)];
+    
+    int16_t sample;
+    
+    // Go through 2 bytes at a time
+    for(int i =0; i < subChunk2Size / (bitsPerSample/8); i++){
+        input.read((char*)&sample, 2);
+        
+        double limit = (double) sample / (double)INT16_MAX;
+        
+        // Check if beyond max negative range, if so set to max negative limit
+        if(limit < -1.0){
+            limit = (-1.0);
+        }
+        
+        dataA[i] = limit;
+        
+    }
+    
+    // close inputfile stream
+    input.close();
+    
 }
+
+
+// Code from given handouts
+void four1(double data[], int nn, int isign){
+	unsigned long n, mmax, m, j, istep, i;
+	double wtemp, wr, wpr, wpi, wi, theta;
+	double tempr, tempi;
+	
+	n = nn << 1;
+	j = 1;
+	
+	for (i = 1; i < n; i += 2){
+		if (j > i) {
+			SWAP(data[j], data[i]);
+			SWAP(data[j+1], data[i+1]);
+		}
+		m = nn;
+		while (m >= 2 && j > m){
+			j -= m;
+			m >>= 1;
+		}
+		
+		j += m;
+	}
+	
+	mmax = 2;
+	while (n > mmax){
+		istep = mmax << 1;
+		theta = isign * (6.28318530717959 / mmax);
+		wtemp = sin(0.5 * theta);
+		wpr = -2.0 * wtemp * wtemp;
+		wpi = sin(theta);
+		wr = 1.0;
+		wi = 0.0;
+		for (m = 1; m < mmax; m += 2){
+			for (i = m; i <= n; i += istep){
+				j = i + mmax;
+				tempr = wr * data[j] - wi * data[j+1];
+				tempi = wr * data[j+1] + wi * data[j];
+				data[j] = data[i] - tempr;
+				data[j+1] = data[i+1] - tempi;
+				data[i] += tempr;
+				data[i+1] += tempi;
+			}
+			
+			wr = (wtemp = wr) * wpr - wi * wpi + wr;
+			wi = wi * wpr + wtemp * wpi + wi;
+		}
+		mmax = istep;
+	}	
+}
+
+
+
+
+
 
 void convolve(double signalInput[], int numInput, double impulseResponse[], int numImpulse, double output[], int numResult){
     
@@ -89,7 +169,6 @@ void convolve(double signalInput[], int numInput, double impulseResponse[], int 
 	// Create double arrays of nn size and output array for complex multi 
 	double* inputPadded = new double[numSquared];
 	double* impulsePadded = new double[numSquared];
-	double* oData = new double[numSquared];
 		
 	// Zero padding new arrays inputPadded
 	for(i=0; i < numSquared;i++){
@@ -117,6 +196,9 @@ void convolve(double signalInput[], int numInput, double impulseResponse[], int 
 	
 	cout << "end four1 algorithm" << endl;
 	
+
+	double* oData = new double[numSquared];
+
 
 	// Complex multiplcation
 	for(i=0; i < numSquared; i+=2){
@@ -193,105 +275,37 @@ void writeOutput(string oFile, double oData[], int oLength, int sampleRate){
     
 }
 
-// Code from given handouts
-void four1(double data[], int nn, int isign){
-	unsigned long n, mmax, m, j, istep, i;
-	double wtemp, wr, wpr, wpi, wi, theta;
-	double tempr, tempi;
-	
-	n = nn << 1;
-	j = 1;
-	
-	for (i = 1; i < n; i += 2){
-		if (j > 1) {
-			SWAP(data[j], data[i]);
-			SWAP(data[j+1], data[i+1]);
-		}
-		m = nn;
-		while (m >= 2 && j > m){
-			j -= m;
-			m >>= 1;
-		}
-		
-		j += m;
-	}
-	
-	mmax = 2;
-	while (n > mmax){
-		istep = mmax << 1;
-		theta = isign * (6.28318530717959 / mmax);
-		wtemp = sin(0.5 * theta);
-		wpr = -2.0 * wtemp * wtemp;
-		wpi = sin(theta);
-		wr = 1.0;
-		wi = 0.0;
-		for (m = 1; m < mmax; m += 2){
-			for (i = m; i <= n; i += istep){
-				j = i + mmax;
-				tempr = wr * data[j] - wi * data[j+1];
-				data[j] = data[i] - tempr;
-				data[j+1] = data[i+1] - tempi;
-				data[i] += tempr;
-				data[i+1] += tempi;
-			}
-			
-			wr = (wtemp = wr) * wpr - wi * wpi + wr;
-			wi = wi * wpr + wtemp * wpi + wi;
-		}
-		mmax = istep;
-	}	
-}
 
-AudioHeader::AudioHeader(string fileName){
-    ifstream input;
-    input.open(fileName, ios::binary);
-    
-    input.read((char*)&riff,4);
-    input.read((char*)&chunkSize,4);
-    input.read((char*)&wave, 4);
-    input.read((char*)&fmt, 4);
-    input.read((char*)&subChunk1Size, 4);
-    input.read((char*)&audioFormat,2);
-    input.read((char*)&numChannel, 2);
-    input.read((char*)&samplesPS, 4);
-    input.read((char*)&bytesPS, 4);
-    input.read((char*)&blockAlign, 2);
-    input.read((char*)&bitsPerSample, 2);
 
-    extraData = new uint8_t[subChunk1Size-16];
-    input.read((char*)&extraData, subChunk1Size-16);
-    input.read((char*)&subChunk2ID, 4);
-    input.read((char*)&subChunk2Size, 4);
+
+
+//Prints the wave header
+void printHeader(AudioHeader header){
+    cout << "--- RIFF Chunk Descriptor---" << endl;
+    cout << "RIFF header                :" << header.riff[0] << header.riff[1] << header.riff[2] << header.riff[3] << endl;
+    cout << "Chunk Size                 :" << header.chunkSize << endl;
+    cout << "Format                     :" << header.fmt[0] << header.fmt[1] << header.fmt[2] << header.fmt[3] << endl;
+
+    cout << "------ fmt sub-chunk  ------" << endl;
+    cout << "subChunk1ID                :" << header.fmt[0] << header.fmt[1] << header.fmt[2] << header.fmt [3] << endl;
+    cout << "subChunk1Size              :" << header.subChunk1Size << endl;
+    cout << "audioFormat                :" << header.audioFormat << endl;
+    cout << "numChannel                 :" << header.numChannel << endl;
+    cout << "sampleRate                 :" << header.samplesPS << endl;
+    cout << "byteRate                   :" << header.bytesPS << endl;
+    cout << "blockAlign                 :" << header.blockAlign << endl;
+    cout << "bitsPerSample              :" << header.bitsPerSample << endl;
     
-    dataA = new double[subChunk2Size / (bitsPerSample/8)];
-    
-    int16_t sample;
-    
-    // Go through 2 bytes at a time
-    for(int i =0; i < (subChunk2Size / (bitsPerSample/8)); i++){
-        input.read((char*)&sample, 2);
-        
-        double limit = (double) sample / (double)INT16_MAX;
-        
-        // Check if beyond max negative range, if so set to max negative limit
-        if(limit < -1.0){
-            limit = (-1.0);
-        }
-        
-        dataA[i] = limit;
-        
-    }
-    
-    // close inputfile stream
-    input.close();
-    
+    cout << "------ data sub-chunk ------" << endl;
+    cout << "subChunk2ID                :" << header.subChunk2ID[0] << header.subChunk2ID[1] << header.subChunk2ID[2] << header.subChunk2ID[3] << endl;
+    cout << "subChunk2Size              :" << header.subChunk2Size << endl;
 }
 
 
 int main(int argc, char * const argv[]){
     
     if (argc != 4){
-        printf("Wrong number of arguments provided. Closing program");
+        cout << "Wrong number of arguments provided. Closing program" << endl;
         exit(-1);
     }
     
