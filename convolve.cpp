@@ -1,10 +1,11 @@
 #include <iostream>
 #include <stdio.h>
-#include <string>
 #include <math.h>
 #include <fstream>
 #include <stdint.h>
 #include <unistd.h>
+#include <string>
+
 using namespace std;
 
 // Define classes
@@ -24,27 +25,9 @@ class AudioHeader
 };
 
 //Declare Functions
-int getFileSize(FILE *wavFile);
 void printHeader(AudioHeader header);
 void convolve(double signalInput[], int numInput, double impulseResponse[], int numImpulse, double output[], int numResult);
 void writeOutput(string oFile, double oData[], int oLength, int sampleRate);
-
-
-int finalLength;
-
-
-
-// find the file size
-int getFileSize(FILE* wavFile)
-{
-    int fileSize = 0;
-    fseek(wavFile, 0, SEEK_END);
-
-    fileSize = ftell(wavFile);
-
-    fseek(wavFile, 0, SEEK_SET);
-    return fileSize;
-}
 
 //Prints the wave header
 void printHeader(AudioHeader header){
@@ -67,7 +50,6 @@ void printHeader(AudioHeader header){
     cout << "subChunk2ID                :" << header.subChunk2ID[0] << header.subChunk2ID[1] << header.subChunk2ID[2] << header.subChunk2ID[3] << endl;
     cout << "subChunk2Size              :" << header.subChunk2Size << endl;
     
-    cout << "test" << endl;
 }
 
 //Code from given handouts
@@ -237,10 +219,6 @@ int main(int argc, char * const argv[]){
     cout << "writing wave file" << endl;
     writeOutput(argv[3], result, rLength, iAudio.samplesPS);
     cout << "finished writing wave file" << endl;
-    
-    AudioHeader testAudio(argv[3]);
-    
-    printHeader(testAudio);
     
     return 0;    
 
